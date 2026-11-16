@@ -84,4 +84,14 @@ class OrderController extends Controller
         return to_route('orders.index')
             ->with('success', 'Order updated successfully.');
     }
+
+    public function destroy(string $id): RedirectResponse
+    {
+        $order = Order::findOrFail($id);
+
+        $this->service->deleteOrder($order);
+
+        return to_route('orders.index')
+            ->with('success', 'Order deleted successfully.');
+    }
 }

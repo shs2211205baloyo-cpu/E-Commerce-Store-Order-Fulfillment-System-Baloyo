@@ -42,6 +42,15 @@ class ProductController extends Controller
             ->with('success', 'Product created successfully.');
     }
 
+    public function storeForOrder(
+        StoreProductRequest $request
+    ): RedirectResponse {
+        $product = $this->service->createProduct($request->validated());
+
+        return to_route('orders.create')
+            ->with('created_product_id', $product->id);
+    }
+
     public function update(
         UpdateProductRequest $request,
         string $id

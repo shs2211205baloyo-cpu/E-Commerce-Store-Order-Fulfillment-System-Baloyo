@@ -25,7 +25,11 @@ export interface SharedData {
     name: string;
     quote: { message: string; author: string };
     auth: Auth;
-    flash?: { success?: string | null };
+    flash?: {
+        success?: string | null;
+        created_customer_id?: number | null;
+        created_product_id?: number | null;
+    };
     [key: string]: unknown;
 }
 

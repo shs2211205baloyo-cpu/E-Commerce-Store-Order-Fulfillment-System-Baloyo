@@ -32,6 +32,11 @@ class DatabaseSeeder extends Seeder
             ['customer_name' => 'Sample Customer'],
         );
 
+        Customer::query()->firstOrCreate(
+            ['customer_email' => 'maria.santos@example.test'],
+            ['customer_name' => 'Maria Santos'],
+        );
+
         Product::query()->firstOrCreate(
             ['item_sku' => 'DEMO-001'],
             [
@@ -39,6 +44,16 @@ class DatabaseSeeder extends Seeder
                 'item_name' => 'Sample Product',
                 'unit_price' => '100.00',
                 'stock_quantity' => 10,
+            ],
+        );
+
+        Product::query()->firstOrCreate(
+            ['item_sku' => 'DEMO-002'],
+            [
+                'category_id' => $category->id,
+                'item_name' => 'Wireless Mouse',
+                'unit_price' => '24.99',
+                'stock_quantity' => 25,
             ],
         );
     }

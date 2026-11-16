@@ -64,6 +64,15 @@ type EditOrderProps = {
     products: Product[];
 };
 
+function CustomerOption({ name, email }: { name: string; email: string }) {
+    return (
+        <div className="flex flex-col">
+            <span>{name}</span>
+            <span className="text-xs text-muted-foreground">{email}</span>
+        </div>
+    );
+}
+
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Orders', href: '/orders' },
     { title: 'Edit order', href: '#' },
@@ -161,8 +170,15 @@ export default function EditOrder({ order, customers, products }: EditOrderProps
                                         </SelectTrigger>
                                         <SelectContent>
                                             {customers.map((customer) => (
-                                                <SelectItem key={customer.id} value={String(customer.id)}>
-                                                    {customer.customer_name} · {customer.customer_email}
+                                                <SelectItem
+                                                    key={customer.id}
+                                                    value={String(customer.id)}
+                                                    textValue={customer.customer_name}
+                                                >
+                                                    <CustomerOption
+                                                        name={customer.customer_name}
+                                                        email={customer.customer_email}
+                                                    />
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -220,9 +236,10 @@ export default function EditOrder({ order, customers, products }: EditOrderProps
                                     size="sm"
                                     onClick={addItem}
                                     disabled={data.items.length >= products.length}
+                                    title="Add another line item to this order"
                                 >
                                     <Plus />
-                                    Add item
+                                    Add line item
                                 </Button>
                             </CardHeader>
                             <CardContent className="space-y-4">

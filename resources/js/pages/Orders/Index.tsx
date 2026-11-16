@@ -3,8 +3,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import AppLayout from '@/layouts/app-layout';
 import { type BreadcrumbItem } from '@/types';
-import { Head, Link, usePage } from '@inertiajs/react';
-import { Pencil, Plus } from 'lucide-react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { type SharedData } from '@/types';
 
 type Order = {
@@ -43,6 +43,14 @@ const paginationLabel = (label: string) => label.replace(/&laquo;/g, '«').repla
 
 export default function OrdersIndex({ orders }: OrderIndexProps) {
     const { flash } = usePage<SharedData>().props;
+
+    const deleteOrder = (order: Order) => {
+        if (window.confirm(`Delete order #${order.id}? This action cannot be undone.`)) {
+            router.delete(route('orders.destroy', order.id), {
+                preserveScroll: true,
+            });
+        }
+    };
 
     return (
         <AppLayout breadcrumbs={breadcrumbs}>
@@ -129,12 +137,24 @@ export default function OrdersIndex({ orders }: OrderIndexProps) {
                                                         </Badge>
                                                     </td>
                                                     <td className="px-3 py-4 text-right">
-                                                        <Button variant="outline" size="sm" asChild>
-                                                            <Link href={`/orders/${order.id}/edit`}>
-                                                                <Pencil />
-                                                                Edit
-                                                            </Link>
-                                                        </Button>
+                                                        <div className="flex justify-end gap-2">
+                                                            <Button variant="outline" size="sm" asChild>
+                                                                <Link href={`/orders/${order.id}/edit`}>
+                                                                    <Pencil />
+                                                                    Edit
+                                                                </Link>
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="destructive"
+                                                                size="sm"
+                                                                onClick={() => deleteOrder(order)}
+                                                                aria-label={`Delete order #${order.id}`}
+                                                            >
+                                                                <Trash2 />
+                                                                Delete
+                                                            </Button>
+                                                        </div>
                                                     </td>
                                                 </tr>
                                             ))}

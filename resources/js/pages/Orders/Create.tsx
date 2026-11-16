@@ -3,10 +3,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import InputError from '@/components/input-error';
 import AppLayout from '@/layouts/app-layout';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { type BreadcrumbItem } from '@/types';
 import { Head, Link, useForm } from '@inertiajs/react';
 import { ArrowLeft, Plus, ShoppingBag, Trash2 } from 'lucide-react';
-import { FormEventHandler } from 'react';
+import { FormEventHandler, useState } from 'react';
 import {
     Select,
     SelectContent,
@@ -30,6 +38,11 @@ type Product = {
     category: { category_name: string } | null;
 };
 
+type Category = {
+    id: number;
+    category_name: string;
+};
+
 type OrderItemInput = {
     product_id: string;
     quantity_ordered: number;
@@ -42,10 +55,33 @@ type OrderFormData = {
     items: OrderItemInput[];
 };
 
+type CustomerFormData = {
+    customer_name: string;
+    customer_email: string;
+};
+
+type ProductFormData = {
+    category_id: string;
+    item_sku: string;
+    item_name: string;
+    unit_price: string;
+    stock_quantity: string;
+};
+
 type CreateOrderProps = {
     customers: Customer[];
     products: Product[];
+    categories: Category[];
 };
+
+function CustomerOption({ name, email }: { name: string; email: string }) {
+    return (
+        <div className="flex flex-col">
+            <span>{name}</span>
+            <span className="text-xs text-muted-foreground">{email}</span>
+        </div>
+    );
+}
 
 const breadcrumbs: BreadcrumbItem[] = [
     { title: 'Orders', href: '/orders' },
@@ -57,13 +93,26 @@ const currency = new Intl.NumberFormat('en-PH', {
     currency: 'PHP',
 });
 
-export default function CreateOrder({ customers, products }: CreateOrderProps) {
+export default function CreateOrder({ customers, products, categories }: CreateOrderProps) {
     const { data, setData, post, processing, errors } = useForm<OrderFormData>({
         customer_id: '',
         shipping_address: '',
         tax_amount: '0',
         items: [{ product_id: '', quantity_ordered: 1 }],
     });
+    const customerForm = useForm<CustomerFormData>({
+        customer_name: '',
+        customer_email: '',
+    });
+    const productForm = useForm<ProductFormData>({
+        category_id: '',
+        item_sku: '',
+        item_name: '',
+        unit_price: '',
+        stock_quantity: '1',
+    });
+    const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
+    const [productDialogOpen, setProductDialogOpen] = useState(false);
 
     const subtotal = data.items.reduce((total, item) => {
         const product = products.find((candidate) => String(candidate.id) === item.product_id);
@@ -80,6 +129,42 @@ export default function CreateOrder({ customers, products }: CreateOrderProps) {
     const submit: FormEventHandler = (event) => {
         event.preventDefault();
         post('/orders');
+    };
+
+    const submitCustomer: FormEventHandler = (event) => {
+        event.preventDefault();
+        customerForm.post(route('orders.customers.store'), {
+            preserveScroll: true,
+            onSuccess: (page) => {
+                const customerId = page.props.flash?.created_customer_id;
+                if (customerId) {
+                    setData('customer_id', String(customerId));
+                }
+                customerForm.reset();
+                setCustomerDialogOpen(false);
+            },
+        });
+    };
+
+    const submitProduct: FormEventHandler = (event) => {
+        event.preventDefault();
+        productForm.post(route('orders.products.store'), {
+            preserveScroll: true,
+            onSuccess: (page) => {
+                const productId = page.props.flash?.created_product_id;
+                if (productId) {
+                    const emptyItemIndex = data.items.findIndex((item) => !item.product_id);
+                    if (emptyItemIndex >= 0) {
+                        updateItem(emptyItemIndex, { product_id: String(productId) });
+                    } else {
+                        setData('items', [...data.items, { product_id: String(productId), quantity_ordered: 1 }]);
+                    }
+                }
+                productForm.reset();
+                productForm.setData('stock_quantity', '1');
+                setProductDialogOpen(false);
+            },
+        });
     };
 
     const updateItem = (index: number, patch: Partial<OrderItemInput>) => {
@@ -141,9 +226,20 @@ export default function CreateOrder({ customers, products }: CreateOrderProps) {
                             </CardHeader>
                             <CardContent className="grid gap-5">
                                 <div className="grid gap-2">
-                                    <label htmlFor="customer" className="text-sm font-medium">
-                                        Customer
-                                    </label>
+                                    <div className="flex items-center justify-between">
+                                        <label htmlFor="customer" className="text-sm font-medium">
+                                            Customer
+                                        </label>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setCustomerDialogOpen(true)}
+                                        >
+                                            <Plus />
+                                            Add customer
+                                        </Button>
+                                    </div>
                                     <Select
                                         value={data.customer_id}
                                         onValueChange={(value) => setData('customer_id', value)}
@@ -153,8 +249,15 @@ export default function CreateOrder({ customers, products }: CreateOrderProps) {
                                         </SelectTrigger>
                                         <SelectContent>
                                             {customers.map((customer) => (
-                                                <SelectItem key={customer.id} value={String(customer.id)}>
-                                                    {customer.customer_name} · {customer.customer_email}
+                                                <SelectItem
+                                                    key={customer.id}
+                                                    value={String(customer.id)}
+                                                    textValue={customer.customer_name}
+                                                >
+                                                    <CustomerOption
+                                                        name={customer.customer_name}
+                                                        email={customer.customer_email}
+                                                    />
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
@@ -182,18 +285,34 @@ export default function CreateOrder({ customers, products }: CreateOrderProps) {
                             <CardHeader className="flex-row items-center justify-between space-y-0">
                                 <div>
                                     <CardTitle className="text-lg">Products</CardTitle>
-                                    <CardDescription className="mt-1.5">Select items and set their quantities.</CardDescription>
+                                    <CardDescription className="mt-1.5">
+                                        Add catalog products or extra order line items.
+                                    </CardDescription>
                                 </div>
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={addItem}
-                                    disabled={data.items.length >= products.length}
-                                >
-                                    <Plus />
-                                    Add item
-                                </Button>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => setProductDialogOpen(true)}
+                                        disabled={!categories.length}
+                                        title="Create a new product in the catalog"
+                                    >
+                                        <Plus />
+                                        New product
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={addItem}
+                                        disabled={data.items.length >= products.length}
+                                        title="Add another product row to this order"
+                                    >
+                                        <Plus />
+                                        Add line item
+                                    </Button>
+                                </div>
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {data.items.map((item, index) => {
@@ -341,6 +460,146 @@ export default function CreateOrder({ customers, products }: CreateOrderProps) {
                         </div>
                     </aside>
                 </form>
+
+                <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Add customer</DialogTitle>
+                            <DialogDescription>
+                                Create a customer and select them for this order.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={submitCustomer} className="grid gap-4">
+                            <div className="grid gap-2">
+                                <label htmlFor="new-customer-name" className="text-sm font-medium">
+                                    Name
+                                </label>
+                                <Input
+                                    id="new-customer-name"
+                                    value={customerForm.data.customer_name}
+                                    onChange={(event) => customerForm.setData('customer_name', event.target.value)}
+                                    required
+                                />
+                                <InputError message={customerForm.errors.customer_name} />
+                            </div>
+                            <div className="grid gap-2">
+                                <label htmlFor="new-customer-email" className="text-sm font-medium">
+                                    Email
+                                </label>
+                                <Input
+                                    id="new-customer-email"
+                                    type="email"
+                                    value={customerForm.data.customer_email}
+                                    onChange={(event) => customerForm.setData('customer_email', event.target.value)}
+                                    required
+                                />
+                                <InputError message={customerForm.errors.customer_email} />
+                            </div>
+                            <DialogFooter>
+                                <Button type="submit" disabled={customerForm.processing}>
+                                    {customerForm.processing ? 'Saving…' : 'Save customer'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog open={productDialogOpen} onOpenChange={setProductDialogOpen}>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Create product</DialogTitle>
+                            <DialogDescription>
+                                Add a new product to the catalog and include it in this order.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <form onSubmit={submitProduct} className="grid gap-4">
+                            <div className="grid gap-2">
+                                <label htmlFor="new-product-category" className="text-sm font-medium">
+                                    Category
+                                </label>
+                                <Select
+                                    value={productForm.data.category_id}
+                                    onValueChange={(value) => productForm.setData('category_id', value)}
+                                >
+                                    <SelectTrigger id="new-product-category">
+                                        <SelectValue placeholder="Select a category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {categories.map((category) => (
+                                            <SelectItem key={category.id} value={String(category.id)}>
+                                                {category.category_name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <InputError message={productForm.errors.category_id} />
+                            </div>
+                            <div className="grid gap-2">
+                                <label htmlFor="new-product-sku" className="text-sm font-medium">
+                                    SKU
+                                </label>
+                                <Input
+                                    id="new-product-sku"
+                                    value={productForm.data.item_sku}
+                                    onChange={(event) => productForm.setData('item_sku', event.target.value)}
+                                    required
+                                />
+                                <InputError message={productForm.errors.item_sku} />
+                            </div>
+                            <div className="grid gap-2">
+                                <label htmlFor="new-product-name" className="text-sm font-medium">
+                                    Product name
+                                </label>
+                                <Input
+                                    id="new-product-name"
+                                    value={productForm.data.item_name}
+                                    onChange={(event) => productForm.setData('item_name', event.target.value)}
+                                    required
+                                />
+                                <InputError message={productForm.errors.item_name} />
+                            </div>
+                            <div className="grid gap-4 sm:grid-cols-2">
+                                <div className="grid gap-2">
+                                    <label htmlFor="new-product-price" className="text-sm font-medium">
+                                        Unit price
+                                    </label>
+                                    <Input
+                                        id="new-product-price"
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        value={productForm.data.unit_price}
+                                        onChange={(event) => productForm.setData('unit_price', event.target.value)}
+                                        required
+                                    />
+                                    <InputError message={productForm.errors.unit_price} />
+                                </div>
+                                <div className="grid gap-2">
+                                    <label htmlFor="new-product-stock" className="text-sm font-medium">
+                                        Stock quantity
+                                    </label>
+                                    <Input
+                                        id="new-product-stock"
+                                        type="number"
+                                        min="1"
+                                        step="1"
+                                        value={productForm.data.stock_quantity}
+                                        onChange={(event) =>
+                                            productForm.setData('stock_quantity', event.target.value)
+                                        }
+                                        required
+                                    />
+                                    <InputError message={productForm.errors.stock_quantity} />
+                                </div>
+                            </div>
+                            <DialogFooter>
+                                <Button type="submit" disabled={productForm.processing || !categories.length}>
+                                    {productForm.processing ? 'Saving…' : 'Save and add product'}
+                                </Button>
+                            </DialogFooter>
+                        </form>
+                    </DialogContent>
+                </Dialog>
             </main>
         </AppLayout>
     );

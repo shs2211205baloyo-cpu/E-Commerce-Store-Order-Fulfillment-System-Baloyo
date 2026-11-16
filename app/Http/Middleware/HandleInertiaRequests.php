@@ -47,6 +47,8 @@ class HandleInertiaRequests extends Middleware
             ],
             'flash' => [
                 'success' => fn () => $request->session()->get('success'),
+                'created_customer_id' => fn () => $request->session()->get('created_customer_id'),
+                'created_product_id' => fn () => $request->session()->get('created_product_id'),
             ],
         ]);
     }

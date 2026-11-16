@@ -7,6 +7,7 @@ use App\Models\Customer;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Inertia\Testing\AssertableInertia as Assert;
 use Tests\TestCase;
@@ -15,11 +16,35 @@ class OrderUpdateTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_guests_are_redirected_to_login_for_order_routes(): void
+    {
+        $this->get(route('orders.index'))->assertRedirect(route('login'));
+        $this->get(route('orders.create'))->assertRedirect(route('login'));
+        $this->get(route('orders.edit', 1))->assertRedirect(route('login'));
+        $this->post(route('orders.store'))->assertRedirect(route('login'));
+        $this->put(route('orders.update', 1))->assertRedirect(route('login'));
+    }
+
+    public function test_root_redirects_guests_to_login_before_showing_order_creation(): void
+    {
+        $this->get('/')
+            ->assertRedirect(route('orders.create'));
+
+        $this->get(route('orders.create'))
+            ->assertRedirect(route('login'));
+
+        $this->post(route('login'), [
+            'email' => User::factory()->create()->email,
+            'password' => 'password',
+        ])->assertRedirect(route('orders.create'));
+    }
+
     public function test_order_edit_page_is_displayed_with_current_order_data(): void
     {
         [$order] = $this->createOrderWithItem();
 
-        $this->get(route('orders.edit', $order))
+        $this->actingAs(User::factory()->create())
+            ->get(route('orders.edit', $order))
             ->assertOk()
             ->assertInertia(fn (Assert $page) => $page
                 ->component('Orders/Edit')
@@ -33,18 +58,19 @@ class OrderUpdateTest extends TestCase
     {
         [$order, $product] = $this->createOrderWithItem();
 
-        $this->put(route('orders.update', $order), [
-            'customer_id' => $order->customer_id,
-            'shipping_address' => 'Updated shipping address',
-            'tax_amount' => '2.00',
-            'order_status' => 'processing',
-            'items' => [
-                [
-                    'product_id' => $product->id,
-                    'quantity_ordered' => 3,
+        $this->actingAs(User::factory()->create())
+            ->put(route('orders.update', $order), [
+                'customer_id' => $order->customer_id,
+                'shipping_address' => 'Updated shipping address',
+                'tax_amount' => '2.00',
+                'order_status' => 'processing',
+                'items' => [
+                    [
+                        'product_id' => $product->id,
+                        'quantity_ordered' => 3,
+                    ],
                 ],
-            ],
-        ])
+            ])
             ->assertSessionHasNoErrors()
             ->assertRedirect(route('orders.index'));
 

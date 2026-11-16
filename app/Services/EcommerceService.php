@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\DeletedOrderHistory;
 use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
@@ -271,6 +272,47 @@ class EcommerceService
             $order->save();
 
             return $order->load(['customer', 'orderItems.product']);
+        }, 3);
+    }
+
+    public function deleteOrder(Order $order): void
+    {
+        DB::transaction(function () use ($order) {
+            $order = Order::query()
+                ->lockForUpdate()
+                ->findOrFail($order->id);
+
+            $items = $order->orderItems()
+                ->orderBy('product_id')
+                ->get();
+
+            if ($order->order_status !== 'cancelled') {
+                $products = Product::query()
+                    ->whereIn('id', $items->pluck('product_id'))
+                    ->orderBy('id')
+                    ->lockForUpdate()
+                    ->get()
+                    ->keyBy('id');
+
+                foreach ($items as $item) {
+                    $products->get($item->product_id)
+                        ->increment('stock_quantity', $item->quantity_ordered);
+                }
+            }
+
+            $order->loadMissing('customer');
+
+            DeletedOrderHistory::create([
+                'original_order_id' => $order->id,
+                'customer_name' => $order->customer->customer_name,
+                'order_date' => $order->order_date,
+                'order_status' => $order->order_status,
+                'grand_total' => $order->grand_total,
+                'item_count' => $items->count(),
+                'deleted_at' => now(),
+            ]);
+
+            $order->delete();
         }, 3);
     }
 }
